@@ -11,7 +11,6 @@ CHANNELS_FILE = os.path.join(DATA_DIR, "programme-tv.net.channels.xml")
 EPG_DIR = "epg"
 
 # قراءة القنوات من XML
-import xml.etree.ElementTree as ET
 tree = ET.parse(CHANNELS_FILE)
 root = tree.getroot()
 
@@ -43,6 +42,30 @@ for ch in channels:
 def xmltv_time(dt):
     return dt.strftime("%Y%m%d%H%M%S +0100")  # Paris timezone +01:00
 
+# دالة لتحويل مدة نصية إلى دقائق
+def parse_duration(duration_text):
+    hours = minutes = 0
+    duration_text = duration_text.lower().replace(" ", "")
+    if 'h' in duration_text:
+        parts = duration_text.split('h')
+        try:
+            hours = int(parts[0])
+        except ValueError:
+            hours = 0
+        if len(parts) > 1:
+            min_part = parts[1].replace('mn','').replace('min','')
+            try:
+                minutes = int(min_part)
+            except ValueError:
+                minutes = 0
+    elif 'mn' in duration_text or 'min' in duration_text:
+        min_part = duration_text.replace('mn','').replace('min','')
+        try:
+            minutes = int(min_part)
+        except ValueError:
+            minutes = 0
+    return hours, minutes
+
 # سحب EPG لكل قناة
 for ch in channels:
     print(f"جارٍ سحب EPG للقناة: {ch['name']}")
@@ -73,14 +96,7 @@ for ch in channels:
 
         # تحويل وقت البدء ومدة البرنامج إلى datetime
         start_dt = datetime.strptime(f"{date_str} {start_time}", "%Y-%m-%d %H:%M")
-        # تحويل مدة (ex: "1h30") إلى دقائق
-        hours = minutes = 0
-        if 'h' in duration_text:
-            parts = duration_text.split('h')
-            hours = int(parts[0])
-            minutes = int(parts[1].replace('mn','')) if len(parts)>1 and parts[1] else 0
-        elif 'mn' in duration_text:
-            minutes = int(duration_text.replace('mn',''))
+        hours, minutes = parse_duration(duration_text)
         end_dt = start_dt + timedelta(hours=hours, minutes=minutes)
 
         # إضافة البرنامج إلى XML
@@ -95,7 +111,6 @@ for ch in channels:
 
 # حفظ ملف XML
 xml_file = os.path.join(EPG_DIR, f"epg-{date_str}.xml")
-tree = ET.ElementTree(tv)
 # تنسيق XML
 xml_str = minidom.parseString(ET.tostring(tv)).toprettyxml(indent="  ")
 with open(xml_file, "w", encoding="utf-8") as f:
