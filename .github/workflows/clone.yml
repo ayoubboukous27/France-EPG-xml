@@ -1,42 +1,100 @@
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+name: Generate 7-day EPG France + Logos
 
-// ----------------------
-// 1️⃣ Clone tv-logos repo
-// ----------------------
-const repoUrl = 'https://github.com/tv-logo/tv-logos.git';
-const cloneDir = path.join(__dirname, 'tv-logos');
+on:
+  schedule:
+    - cron: "0 8 * * *"  # تشغيل يوميًا الساعة 08:00 UTC
+  workflow_dispatch:
 
-if (!fs.existsSync(cloneDir)) {
-  console.log('📥 Cloning tv-logos repository...');
-  execSync(`git clone ${repoUrl} ${cloneDir}`, { stdio: 'inherit' });
-} else {
-  console.log('✅ tv-logos repo already exists. Pulling latest changes...');
-  execSync(`git -C ${cloneDir} pull`, { stdio: 'inherit' });
-}
+permissions:
+  contents: write
 
-// ----------------------
-// 2️⃣ Generate mapping for France
-// ----------------------
-const franceDir = path.join(cloneDir, 'countries', 'france');
+jobs:
+  epg_france:
+    runs-on: ubuntu-latest
 
-if (!fs.existsSync(franceDir)) {
-  console.error('❌ France folder not found in tv-logos repo!');
-  process.exit(1);
-}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-const files = fs.readdirSync(franceDir);
-const mapping = {};
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-// لكل شعار، استخدم اسم الملف (lowercase) كـ key
-files.forEach(file => {
-  const name = path.basename(file, path.extname(file)).toLowerCase(); // اسم القناة lowercase
-  mapping[name] = `https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/${file}`;
-});
+      # --------------------------
+      # Clone tv-logos repository
+      # --------------------------
+      - name: Clone TV Logos repo
+        run: |
+          if [ ! -d "tv-logos" ]; then
+            echo "📥 Cloning tv-logos..."
+            git clone https://github.com/tv-logo/tv-logos.git
+          else
+            echo "✅ tv-logos exists, pulling latest..."
+            git -C tv-logos pull
+          fi
 
-// حفظ Mapping JSON
-const outputFile = path.join(__dirname, 'logos-fr.json');
-fs.writeFileSync(outputFile, JSON.stringify(mapping, null, 2));
+      # --------------------------
+      # Generate logos mapping
+      # --------------------------
+      - name: Generate logos mapping
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const franceDir = path.join(__dirname, 'tv-logos', 'countries', 'france');
+          const files = fs.readdirSync(franceDir);
+          const mapping = {};
+          files.forEach(file => {
+            const name = path.basename(file, path.extname(file)).toLowerCase();
+            mapping[name] = `https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/france/${file}`;
+          });
+          fs.writeFileSync('logos-fr.json', JSON.stringify(mapping, null, 2));
+          console.log('✅ logos-fr.json generated');
+          EOF
 
-console.log(`✅ Mapping JSON created successfully: ${outputFile}`);
+      # --------------------------
+      # Generate 7-day EPG
+      # --------------------------
+      - name: Generate 7-day EPG (programme-tv.net)
+        run: |
+          npm install
+          npm run grab --- --site=programme-tv.net --days=7
+
+      # --------------------------
+      # Add logos to XML
+      # --------------------------
+      - name: Add logos to XML
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          let xml = fs.readFileSync('epg/guide.xml', 'utf8');
+          const logos = JSON.parse(fs.readFileSync('logos-fr.json', 'utf8'));
+          for (const [channelName, logo] of Object.entries(logos)) {
+            const regex = new RegExp(`(<channel[^>]*>(?:\\s*<display-name>)?${channelName}(?:</display-name>)?)</channel>`, 'gi');
+            xml = xml.replace(regex, `$1<icon src="${logo}"/></channel>`);
+          }
+          fs.writeFileSync('epg/guide.xml', xml);
+          console.log('✅ Logos added successfully');
+          EOF
+
+      # --------------------------
+      # Save XML and compress
+      # --------------------------
+      - name: Save and compress XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-programme-tv-7days.xml
+          gzip -c public/epg-programme-tv-7days.xml > public/epg-programme-tv-7days.xml.gz
+
+      # --------------------------
+      # Commit & push changes
+      # --------------------------
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-programme-tv-7days.xml public/epg-programme-tv-7days.xml.gz logos-fr.json
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG with logos"
+          git pull --rebase origin main
+          git push origin main
