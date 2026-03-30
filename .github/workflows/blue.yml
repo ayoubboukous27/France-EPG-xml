@@ -2,7 +2,7 @@ name: EPG TV Blue Update
 
 on:
   schedule:
-    - cron: "0 4 * * *"  # يمكنك تغييره لتفادي تداخل التشغيل
+    - cron: "0 4 * * *"  # تحديث يوميًا الساعة 04:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -41,5 +41,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          git add public/epg-tv-blue.xml
           git diff-index --quiet HEAD || git commit -m "Update EPG tv.blue.ch"
-          git push
+          git pull --rebase origin main
+          git push origin main
