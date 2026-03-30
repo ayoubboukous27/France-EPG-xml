@@ -1,0 +1,43 @@
+name: Generate EPG
+
+on:
+schedule:
+- cron: "0 3 * * *"  # كل يوم على 03:00 UTC
+workflow_dispatch:     # تشغيل يدوي
+
+jobs:
+build:
+runs-on: ubuntu-latest
+
+steps:
+  - name: Checkout repo
+    uses: actions/checkout@v4
+
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: 18
+
+  - name: Clone EPG repo
+    run: |
+      git clone --depth 1 https://github.com/iptv-org/epg.git
+      cd epg
+      npm install
+
+  - name: Generate EPG (programme-tv.net)
+    run: |
+      cd epg
+      npm run grab --- --site=programme-tv.net
+
+  - name: Move output
+    run: |
+      mkdir -p public
+      mv epg/guide.xml public/guide.xml
+
+  - name: Commit & Push
+    run: |
+      git config --global user.name "github-actions"
+      git config --global user.email "actions@github.com"
+      git add public/guide.xml
+      git commit -m "Update EPG" || echo "No changes"
+      git push
