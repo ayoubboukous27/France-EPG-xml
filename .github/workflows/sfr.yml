@@ -1,0 +1,45 @@
+name: EPG TV SFR
+
+on:
+  workflow_dispatch:       # تشغيل يدوي
+
+permissions:
+  contents: write
+
+jobs:
+  epg_tv_sfr_7days:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Clone EPG repo
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git
+          cd epg
+          npm install
+
+      - name: Generate 7-day EPG (tv.sfr.fr)
+        run: |
+          cd epg
+          npm run grab --- --site=tv.sfr.fr --days=7
+
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-tv-sfr-7days.xml
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-tv-sfr-7days.xml
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG tv.sfr.fr"
+          git pull --rebase origin main
+          git push origin main
