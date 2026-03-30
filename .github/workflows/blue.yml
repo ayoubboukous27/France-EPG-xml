@@ -32,6 +32,32 @@ jobs:
           cd epg
           npm run grab --- --site=tv.blue.ch --days=7
 
+      # --------------------------
+      # Add Blue Sports logo
+      # --------------------------
+      - name: Add Blue Sports logo
+        run: |
+          node << 'EOF'
+          const fs = require('fs');
+          let xml = fs.readFileSync('epg/guide.xml', 'utf8');
+
+          // رابط شعار Blue Sports
+          const blueLogo = "https://raw.githubusercontent.com/ayoubboukous27/Event/refs/heads/main/Logos/blue-sports.png";
+
+          // ابحث عن كل قناة تحتوي اسمها على "blue sport" وأضف أو استبدل شعارها
+          xml = xml.replace(/(<channel[^>]*>)([\s\S]*?)(<\/channel>)/gi, (match, start, middle, end) => {
+            if (/blue sport/i.test(middle)) {
+              // إزالة أي شعار موجود مسبقًا
+              const cleaned = middle.replace(/<icon[^>]*\/>/gi, '');
+              return `${start}<icon src="${blueLogo}"/>${cleaned}${end}`;
+            }
+            return match;
+          });
+
+          fs.writeFileSync('epg/guide.xml', xml);
+          console.log('✅ Blue Sports logo applied to matching channels');
+          EOF
+
       - name: Save XML
         run: |
           mkdir -p public
@@ -42,6 +68,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-tv-blue.xml
-          git diff-index --quiet HEAD || git commit -m "Update EPG tv.blue.ch"
+          git diff-index --quiet HEAD || git commit -m "Update EPG tv.blue.ch with Blue Sports logo"
           git pull --rebase origin main
           git push origin main
