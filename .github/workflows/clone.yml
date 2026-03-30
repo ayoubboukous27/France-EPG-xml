@@ -1,0 +1,8 @@
+- name: Clone TV Logos repo
+  run: git clone https://github.com/tv-logo/tv-logos.git
+
+- name: Generate logos mapping
+  run: node generate-logos-mapping.js
+
+- name: Add logos to XML
+  run: node add-logos.js
