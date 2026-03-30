@@ -1,0 +1,94 @@
+name: Generate 10‑day EPG rts.ch with logos
+
+on:
+  schedule:
+    - cron: "0 8 * * *"  # تحديث يوميًا الساعة 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  epg_rts_ch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # --------------------------
+      # Clone iptv-org/epg
+      # --------------------------
+      - name: Clone EPG repository
+        run: |
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
+
+      # --------------------------
+      # Install dependencies
+      # --------------------------
+      - name: Install EPG dependencies
+        run: |
+          cd epg
+          npm install
+
+      # --------------------------
+      # Generate 10‑day EPG for rts.ch
+      # --------------------------
+      - name: Generate 10‑day EPG (rts.ch)
+        run: |
+          cd epg
+          npm run grab --- --site=rts.ch --days=10
+
+      # --------------------------
+      # Add custom logos
+      # --------------------------
+      - name: Add logos to XML
+        run: |
+          node << 'EOF'
+          const fs = require('fs')
+          let xml = fs.readFileSync('epg/guide.xml', 'utf8')
+
+          // Add RTS 1 logo
+          xml = xml.replace(
+            /(<channel[^>]*id="?rts1[^">]*"?[^>]*>)/gi,
+            `$1<icon src="https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts1.png"/>`
+          )
+
+          // Add RTS 2 logo
+          xml = xml.replace(
+            /(<channel[^>]*id="?rts2[^">]*"?[^>]*>)/gi,
+            `$1<icon src="https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts2.png"/>`
+          )
+
+          fs.writeFileSync('epg/guide.xml', xml)
+          console.log('✅ Custom logos added')
+          EOF
+
+      # --------------------------
+      # Save XML
+      # --------------------------
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-rts-ch-10days.xml
+
+      # --------------------------
+      # Commit & Push
+      # --------------------------
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-rts-ch-10days.xml
+          git diff-index --quiet HEAD || git commit -m "Update 10‑day EPG rts.ch with custom logos"
+          git pull --rebase origin main
+          git push origin main
