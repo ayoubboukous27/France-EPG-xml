@@ -1,0 +1,47 @@
+name: EPG MovistarPlus ES
+
+on:
+  schedule:
+    - cron: "0 8 * * *"   # تحديث تلقائي يوميًا الساعة 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  epg_movistarplus_es:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Clone EPG repo
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git
+          cd epg
+          npm install
+
+      - name: Generate 7-day EPG (movistarplus.es)
+        run: |
+          cd epg
+          npm run grab --- --site=movistarplus.es --days=7
+
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-movistarplus-es-7days.xml
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-movistarplus-es-7days.xml
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG movistarplus.es"
+          git pull --rebase origin main
+          git push origin main
