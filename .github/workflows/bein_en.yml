@@ -1,0 +1,83 @@
+name: Generate 7-day EPG beIN.com EN (XML only)
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # تحديث يوميًا الساعة 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  epg_bein_xml_only:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # --------------------------
+      # Clone iptv-org/epg
+      # --------------------------
+      - name: Clone EPG repository
+        run: |
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
+
+      # --------------------------
+      # Install dependencies
+      # --------------------------
+      - name: Install EPG dependencies
+        run: |
+          cd epg
+          npm install
+
+      # --------------------------
+      # Generate channels XML for bein.com EN
+      # --------------------------
+      - name: Parse beIN channels (EN)
+        run: |
+          cd epg
+          npm run channels:parse --- \
+            --config=./sites/bein.com/bein.com.config.js \
+            --output=./sites/bein.com/bein.com_en.channels.xml \
+            --set=lang:en
+
+      # --------------------------
+      # Generate 7-day EPG
+      # --------------------------
+      - name: Generate 7-day EPG (bein.com EN)
+        run: |
+          cd epg
+          npm run grab --- \
+            --channels=sites/bein.com/bein.com_en.channels.xml \
+            --days=7 \
+            --lang=en
+
+      # --------------------------
+      # Save XML to public folder
+      # --------------------------
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-bein-en-7days.xml
+
+      # --------------------------
+      # Commit & Push changes
+      # --------------------------
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-bein-en-7days.xml
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG beIN.com EN XML"
+          git pull --rebase origin main
+          git push origin main
