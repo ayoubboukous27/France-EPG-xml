@@ -30,7 +30,7 @@ jobs:
       - name: Generate EPG (tv.blue.ch)
         run: |
           cd epg
-          npm run grab --- --site=tv.blue.ch
+          npm run grab --- --site=tv.blue.ch --days=7
 
       - name: Save XML
         run: |
