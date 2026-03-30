@@ -33,29 +33,46 @@ jobs:
           npm run grab --- --site=tv.blue.ch --days=7
 
       # --------------------------
-      # Add Blue Sports logo
+      # Add logos: Blue Sports + RTS
       # --------------------------
-      - name: Add Blue Sports logo
+      - name: Add logos to XML
         run: |
           node << 'EOF'
           const fs = require('fs');
           let xml = fs.readFileSync('epg/guide.xml', 'utf8');
 
-          // رابط شعار Blue Sports
+          // روابط الشعارات
+          const logosById = {
+            "RTS1.ch@SD": "https://raw.githubusercontent.com/ayoubboukous27/Event/refs/heads/main/Logos/rts1.png",
+            "RTS2.ch@SD": "https://raw.githubusercontent.com/ayoubboukous27/Event/refs/heads/main/Logos/rts2.png"
+          };
+
           const blueLogo = "https://raw.githubusercontent.com/ayoubboukous27/Event/refs/heads/main/Logos/blue-sports.png";
 
-          // ابحث عن كل قناة تحتوي اسمها على "blue sport" وأضف أو استبدل شعارها
+          // استبدال أي شعار موجود لكل قناة محددة
           xml = xml.replace(/(<channel[^>]*>)([\s\S]*?)(<\/channel>)/gi, (match, start, middle, end) => {
+
+            // أولاً: قنوات RTS1 و RTS2 حسب xmltv_id
+            const idMatch = match.match(/id=["']([^"']+)["']/i);
+            if (idMatch) {
+              const channelId = idMatch[1];
+              if (logosById[channelId]) {
+                const cleaned = middle.replace(/<icon[^>]*\/>/gi, '');
+                return `${start}<icon src="${logosById[channelId]}"/>${cleaned}${end}`;
+              }
+            }
+
+            // ثانياً: أي قناة تحتوي اسمها "blue sport" (غير حساس لحالة الأحرف)
             if (/blue sport/i.test(middle)) {
-              // إزالة أي شعار موجود مسبقًا
               const cleaned = middle.replace(/<icon[^>]*\/>/gi, '');
               return `${start}<icon src="${blueLogo}"/>${cleaned}${end}`;
             }
+
             return match;
           });
 
           fs.writeFileSync('epg/guide.xml', xml);
-          console.log('✅ Blue Sports logo applied to matching channels');
+          console.log('✅ Logos applied: RTS1, RTS2, and Blue Sports channels');
           EOF
 
       - name: Save XML
@@ -68,6 +85,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-tv-blue.xml
-          git diff-index --quiet HEAD || git commit -m "Update EPG tv.blue.ch with Blue Sports logo"
+          git diff-index --quiet HEAD || git commit -m "Update EPG tv.blue.ch with Blue Sports + RTS logos"
           git pull --rebase origin main
           git push origin main
