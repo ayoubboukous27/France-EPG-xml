@@ -1,4 +1,4 @@
-name: EPG Auto Update
+name: EPG Programme TV Update
 
 on:
   schedule:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  epg:
+  epg_programme_tv:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +27,7 @@ jobs:
           cd epg
           npm install
 
-      - name: Generate EPG
+      - name: Generate EPG (programme-tv.net)
         run: |
           cd epg
           npm run grab --- --site=programme-tv.net
@@ -35,11 +35,13 @@ jobs:
       - name: Save XML
         run: |
           mkdir -p public
-          cp epg/guide.xml public/guide.xml
+          cp epg/guide.xml public/epg-programme-tv.xml
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git diff-index --quiet HEAD || git commit -m "Update EPG"
-          git push
+          git add public/epg-programme-tv.xml
+          git diff-index --quiet HEAD || git commit -m "Update EPG programme-tv"
+          git pull --rebase origin main
+          git push origin main
