@@ -1,0 +1,62 @@
+name: EPG beIN.com AR
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # تحديث يوميًا الساعة 14:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  epg_bein_com_ar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clone EPG repo
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git
+          cd epg
+          npm install
+
+      - name: Parse beIN channels (AR)
+        run: |
+          cd epg
+          npm run channels:parse --- \
+            --config=./sites/bein.com/bein.com.config.js \
+            --output=./sites/bein.com/bein.com_ar.channels.xml \
+            --set=lang:ar
+
+      - name: Generate 7-day EPG (bein.com AR)
+        run: |
+          cd epg
+          npm run grab --- \
+            --channels=sites/bein.com/bein.com_ar.channels.xml \
+            --days=7 \
+            --lang=ar
+
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-bein-com-ar-7days.xml
+
+      - name: Compress XML (gzip)
+        run: |
+          gzip -c public/epg-bein-com-ar-7days.xml > public/epg-bein-com-ar-7days.xml.gz
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-bein-com-ar-7days.xml public/epg-bein-com-ar-7days.xml.gz
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG beIN.com AR"
+          git pull --rebase origin main
+          git push origin main
