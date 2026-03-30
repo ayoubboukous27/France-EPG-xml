@@ -1,0 +1,46 @@
+name: EPG Auto Update
+
+on:
+schedule:
+- cron: "0 3 * * *"
+workflow_dispatch:
+
+permissions:
+contents: write
+
+jobs:
+epg:
+runs-on: ubuntu-latest
+
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+
+  - name: Setup Node
+    uses: actions/setup-node@v4
+    with:
+      node-version: 18
+
+  - name: Clone epg repo
+    run: |
+      git clone --depth 1 https://github.com/iptv-org/epg.git
+      cd epg
+      npm install
+
+  - name: Generate EPG
+    run: |
+      cd epg
+      npm run grab --- --site=programme-tv.net
+
+  - name: Save file
+    run: |
+      mkdir -p public
+      cp epg/guide.xml public/guide.xml
+
+  - name: Commit changes
+    run: |
+      git config user.name "github-actions"
+      git config user.email "actions@github.com"
+      git add public/guide.xml
+      git commit -m "EPG update" || exit 0
+      git push
