@@ -1,0 +1,51 @@
+name: EPG Stod2.is 7 Days Update
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # تحديث يوميًا الساعة 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  epg_stod2_is:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clone EPG repo
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git
+          cd epg
+          npm install
+
+      - name: Generate 7-day EPG (stod2.is)
+        run: |
+          cd epg
+          npm run grab --- --site=stod2.is --days=7
+
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-stod2-is-7days.xml
+
+      - name: Compress XML (gzip)
+        run: |
+          gzip -c public/epg-stod2-is-7days.xml > public/epg-stod2-is-7days.xml.gz
+
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-stod2-is-7days.xml public/epg-stod2-is-7days.xml.gz
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG Stod2.is"
+          git pull --rebase origin main
+          git push origin main
