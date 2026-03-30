@@ -1,4 +1,4 @@
-name: Generate 10‑day EPG rts.ch with logos
+name: Generate 10-day EPG rts.ch with logos
 
 on:
   schedule:
@@ -41,36 +41,38 @@ jobs:
           npm install
 
       # --------------------------
-      # Generate 10‑day EPG for rts.ch
+      # Generate 10-day EPG for rts.ch
       # --------------------------
-      - name: Generate 10‑day EPG (rts.ch)
+      - name: Generate 10-day EPG
         run: |
           cd epg
           npm run grab --- --site=rts.ch --days=10
 
       # --------------------------
-      # Add custom logos
+      # Replace old icons with RTS logos
       # --------------------------
-      - name: Add logos to XML
+      - name: Replace old icons with RTS logos
         run: |
           node << 'EOF'
           const fs = require('fs')
           let xml = fs.readFileSync('epg/guide.xml', 'utf8')
 
-          // Add RTS 1 logo
-          xml = xml.replace(
-            /(<channel[^>]*id="?rts1[^">]*"?[^>]*>)/gi,
-            `$1<icon src="https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts1.png"/>`
-          )
+          // تعريف الشعارات الجديدة
+          const logos = {
+            "RTS1.ch@SD": "https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts1.png",
+            "RTS2.ch@SD": "https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts2.png"
+          }
 
-          // Add RTS 2 logo
-          xml = xml.replace(
-            /(<channel[^>]*id="?rts2[^">]*"?[^>]*>)/gi,
-            `$1<icon src="https://raw.githubusercontent.com/ayoubboukous27/Event/main/Logos/rts2.png"/>`
-          )
+          for (const [xmltv_id, logo] of Object.entries(logos)) {
+            const channelRegex = new RegExp(`(<channel[^>]*id=["']${xmltv_id}["'][^>]*>)([\\s\\S]*?)(</channel>)`, 'gi');
+            xml = xml.replace(channelRegex, (match, start, middle, end) => {
+              const cleaned = middle.replace(/<icon[^>]*\/>/gi, '') // إزالة أي شعار قديم
+              return `${start}<icon src="${logo}"/>${cleaned}${end}`
+            })
+          }
 
           fs.writeFileSync('epg/guide.xml', xml)
-          console.log('✅ Custom logos added')
+          console.log('✅ Old icons removed, new RTS logos applied')
           EOF
 
       # --------------------------
@@ -89,6 +91,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-rts-ch-10days.xml
-          git diff-index --quiet HEAD || git commit -m "Update 10‑day EPG rts.ch with custom logos"
+          git diff-index --quiet HEAD || git commit -m "Update 10-day EPG rts.ch with RTS logos"
           git pull --rebase origin main
           git push origin main
