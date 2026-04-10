@@ -1,15 +1,15 @@
-name: Pluto.tv FR EPG Update (gzip)
+name: Pluto.tv EPG Update (multi-country + gzipped)
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # تحديث يوميًا الساعة 06:00 UTC
+    - cron: "0 6 * * *"  # يوميًا الساعة 06:00 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  grab_pluto_fr:
+  grab_pluto:
     runs-on: ubuntu-latest
 
     steps:
@@ -38,22 +38,57 @@ jobs:
           npm install
 
       # --------------------------
-      # Grab EPG for Pluto.tv (France)
+      # Grab Pluto.tv EPG for all countries
       # --------------------------
-      - name: Grab Pluto.tv French EPG
+      - name: Grab Pluto.tv EPG
         run: |
           cd epg
-          npm run grab --- --site=pluto.tv --channels=sites/pluto.tv/pluto.tv_fr.channels.xml
+          # سيقوم بالاعتماد على ملفات القنوات لكل بلد
+          for file in sites/pluto.tv/pluto.tv_*.channels.xml; do
+            npm run grab --- --site=pluto.tv --channels=$file --days=5
+          done
 
       # --------------------------
-      # Save & compress XML
+      # Add country code based on XML file name and gzip
       # --------------------------
-      - name: Save & compress XML
+      - name: Add country code & gzip
         run: |
           mkdir -p public
-          cp epg/guide.xml public/epg-pluto-fr.xml
-          gzip -f public/epg-pluto-fr.xml
-          echo "✅ EPG saved and compressed to epg-pluto-fr.xml.gz"
+          node << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+
+          // جميع ملفات القنوات لكل بلد
+          const channelFiles = fs.readdirSync('epg/sites/pluto.tv').filter(f => f.endsWith('.channels.xml'));
+
+          channelFiles.forEach(file => {
+            // استنتاج country code من اسم الملف: pluto.tv_fr.channels.xml => fr
+            const match = file.match(/pluto\.tv_([a-z]+)\.channels\.xml$/i);
+            if (!match) return;
+            const countryCode = match[1].toLowerCase();
+
+            const inputFile = 'epg/guide.xml';
+            let xml = fs.readFileSync(inputFile, 'utf8');
+
+            // إضافة country code لكل قناة إذا لم يكن موجود
+            xml = xml.replace(/(<channel[^>]*xmltv_id=")([^"]+)"/gi, (match, start, xmltvId) => {
+              if (!xmltvId.includes('@')) {
+                return `${start}${countryCode}@${xmltvId}"`;
+              }
+              return match;
+            });
+
+            const outputFile = `public/epg-pluto-${countryCode}.xml`;
+            fs.writeFileSync(outputFile, xml);
+            console.log(`✅ Country code '${countryCode}' added -> ${outputFile}`);
+
+            // ضغط gzip
+            const zlib = require('zlib');
+            const gzip = zlib.gzipSync(xml);
+            fs.writeFileSync(outputFile + '.gz', gzip);
+            console.log(`✅ Compressed -> ${outputFile}.gz`);
+          });
+          EOF
 
       # --------------------------
       # Commit & Push
@@ -62,7 +97,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add public/epg-pluto-fr.xml.gz
-          git diff-index --quiet HEAD || git commit -m "Update Pluto.tv FR EPG (gzipped)"
+          git add public/epg-pluto-*.xml.gz
+          git diff-index --quiet HEAD || git commit -m "Update Pluto.tv EPG with country codes (gzipped)"
           git pull --rebase origin main
           git push origin main
