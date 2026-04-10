@@ -33,7 +33,7 @@ jobs:
       # --------------------------
       - name: Grab CanalPlus FR EPG
         run: |
-          npm run grab --- --site=canalplus.com --channels=canalplus.com_fr.channels.xml
+          npm run grab --- --site=canalplus.com --channels=data/canalplus.com_fr.channels.xml
 
       # --------------------------
       # Save & compress XML
