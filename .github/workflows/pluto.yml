@@ -1,63 +1,77 @@
-name: Pluto FR Custom EPG
+name: Pluto.tv FR EPG Update (gzip)
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 6 * * *"  # تحديث يوميًا الساعة 06:00 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  pluto_fr:
+  grab_pluto_fr:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: "20"
 
-      - name: Clone EPG repo
+      # --------------------------
+      # Clone iptv-org/epg repo
+      # --------------------------
+      - name: Clone iptv-org/epg
         run: |
-          git clone --depth 1 https://github.com/iptv-org/epg.git
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
+
+      - name: Install dependencies
+        run: |
           cd epg
           npm install
 
       # --------------------------
-      # استعمال ملفك فقط
+      # Download custom channels XML
       # --------------------------
-      - name: Grab custom Pluto FR EPG
+      - name: Download custom channels XML
         run: |
-          cd epg
-          npm run grab --- --site=pluto.tv --channels=../data/pluto_fr_custom.channels.xml
+          mkdir -p epg/sites/pluto.tv
+          curl -L -o epg/sites/pluto.tv/pluto_fr_custom.channels.xml \
+          https://raw.githubusercontent.com/ayoubboukous27/Multi-providers-EPG-/main/data/pluto_fr_custom.channels.xml
 
       # --------------------------
-      # حفظ فقط الناتج
+      # Grab Pluto.tv French EPG (full available data)
       # --------------------------
-      - name: Save XML
+      - name: Grab Pluto.tv French EPG
+        run: |
+          cd epg
+          npm run grab --- --site=pluto.tv --channels=sites/pluto.tv/pluto_fr_custom.channels.xml
+
+      # --------------------------
+      # Save & compress XML
+      # --------------------------
+      - name: Save & compress XML
         run: |
           mkdir -p public
           cp epg/guide.xml public/epg-pluto-fr.xml
+          gzip -f public/epg-pluto-fr.xml
+          echo "✅ EPG saved and compressed to epg-pluto-fr.xml.gz"
 
       # --------------------------
-      # ضغط (اختياري لكن مهم)
-      # --------------------------
-      - name: Compress
-        run: |
-          gzip -f -k public/epg-pluto-fr.xml
-
-      # --------------------------
-      # Commit
+      # Commit & Push
       # --------------------------
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add public/epg-pluto-fr.xml public/epg-pluto-fr.xml.gz
-          git diff-index --quiet HEAD || git commit -m "Update Pluto FR custom EPG"
+          git add public/epg-pluto-fr.xml.gz
+          git diff-index --quiet HEAD || git commit -m "Update Pluto.tv FR EPG (gzipped)"
           git pull --rebase origin main
           git push origin main
