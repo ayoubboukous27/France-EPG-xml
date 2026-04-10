@@ -1,4 +1,4 @@
-name: Pluto.tv FR EPG Update
+name: Pluto.tv FR EPG Update (5 days)
 
 on:
   schedule:
@@ -38,12 +38,12 @@ jobs:
           npm install
 
       # --------------------------
-      # Grab EPG for Pluto.tv (France)
+      # Grab EPG for Pluto.tv (France) - 5 days
       # --------------------------
-      - name: Grab Pluto.tv French EPG
+      - name: Grab Pluto.tv French EPG (5 days)
         run: |
           cd epg
-          npm run grab --- --site=pluto.tv --channels=sites/pluto.tv/pluto.tv_fr.channels.xml
+          npm run grab --- --site=pluto.tv --channels=sites/pluto.tv/pluto.tv_fr.channels.xml --days=5
 
       # --------------------------
       # Save XML
@@ -51,7 +51,7 @@ jobs:
       - name: Save XML
         run: |
           mkdir -p public
-          cp epg/guide.xml public/epg-pluto-fr.xml
+          cp epg/guide.xml public/epg-pluto-fr-5days.xml
 
       # --------------------------
       # Commit & Push
@@ -60,7 +60,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add public/epg-pluto-fr.xml
-          git diff-index --quiet HEAD || git commit -m "Update Pluto.tv FR EPG"
+          git add public/epg-pluto-fr-5days.xml
+          git diff-index --quiet HEAD || git commit -m "Update Pluto.tv FR EPG 5 days"
           git pull --rebase origin main
           git push origin main
