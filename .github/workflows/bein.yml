@@ -13,31 +13,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout repo الخاص بك (لرفع الملفات)
       - name: 📥 Checkout this repo
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
+      # Setup Node.js
+      - name: 🟢 Setup Node.js LTS
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
 
-      - name: 📂 Clone bein.com from iptv-org/epg
+      # Clone كامل مستودع iptv-org/epg
+      - name: 📂 Clone iptv-org/epg
         run: |
-          git clone --depth 1 --filter=blob:none --sparse https://github.com/iptv-org/epg.git epg
-          cd epg
-          git sparse-checkout set sites/bein.com
+          git clone --depth 1 https://github.com/iptv-org/epg.git epg
 
+      # Install dependencies مع تشغيل postinstall
       - name: 📦 Install dependencies
         run: |
           cd epg
           npm install
 
-      - name: ▶️ Run grab
+      # Run grab
+      - name: ▶️ Run grab for bein.com
         run: |
           cd epg
           npm run grab -- --site=bein.com --lang=en
 
-      - name: ▶️ Parse channels
+      # Parse channels
+      - name: ▶️ Parse channels for bein.com
         run: |
           cd epg
           npm run channels:parse -- \
@@ -45,10 +49,12 @@ jobs:
             --output=./sites/bein.com/bein.com_en.channels.xml \
             --set=lang:en
 
-      - name: 💾 Commit & Push changes
+      # Commit & Push الناتج
+      - name: 💾 Commit & Push XML
         run: |
+          cd epg
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add epg/sites/bein.com/*.xml
+          git add sites/bein.com/bein.com_en.channels.xml
           git commit -m "Update beIN EPG" || echo "No changes to commit"
           git push
