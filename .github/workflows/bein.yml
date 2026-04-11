@@ -37,28 +37,21 @@ jobs:
           cd epg
           npm run grab -- --site=bein.com --lang=en --days=7
 
-      - name: ▶️ Parse channels for bein.com
-        run: |
-          cd epg
-          npm run channels:parse -- \
-            --config=./sites/bein.com/bein.com.config.js \
-            --output=./sites/bein.com/bein.com_en.channels.xml \
-            --set=lang:en
-
-      - name: 📂 Copy XML to /public
+      - name: 📂 Copy guide.xml to /public
         run: |
           mkdir -p public
-          cp epg/sites/bein.com/bein.com_en.channels.xml public/bein.com_en.channels.xml
+          # الملف الرئيسي الذي يحتوي على البرامج هو guide.xml
+          cp epg/guide.xml public/bein_epg.xml
 
       - name: 💾 Commit & Push XML safely
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-          git add public/bein.com_en.channels.xml
+          git add public/bein_epg.xml
 
           if ! git diff --cached --quiet; then
-            git commit -m "Update beIN EPG XML in /public (7 days)"
+            git commit -m "Update beIN EPG guide (7 days)"
           fi
 
           git pull --rebase origin main
