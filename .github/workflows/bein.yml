@@ -2,40 +2,40 @@ name: تحديث EPG لقناة beIN
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # يتم التشغيل يوميًا عند الساعة 2:00 صباحًا
-  workflow_dispatch:     # يسمح بالتشغيل اليدوي من واجهة GitHub
+    - cron: '0 2 * * *'  # يوميًا الساعة 2 صباحًا
+  workflow_dispatch:     # للتشغيل اليدوي
 
 jobs:
   update-epg:
     runs-on: ubuntu-latest
     steps:
       # 1. تحميل الكود من المستودع
-      - name: تحميل الكود من المستودع
+      - name: تحميل الكود
         uses: actions/checkout@v4
 
-      # 2. إعداد بيئة Node.js
+      # 2. إعداد Node.js
       - name: إعداد Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 3. تثبيت الاعتماديات (dependencies)
+      # 3. تثبيت الاعتماديات
       - name: تثبيت الاعتماديات
         run: npm install
 
-      # 4. تشغيل grabber لجلب البيانات
+      # 4. تشغيل grabber لجلب البيانات (الطريقة الجديدة)
       - name: تشغيل grabber لجلب البيانات
-        run: npm run grab --- --site=bein.com --lang=en
+        run: npx epg-grabber --site=bein.com --lang=en --output=./sites/bein.com
 
-      # 5. تحويل البيانات إلى ملف XMLTV
-      - name: تحويل البيانات إلى ملف XMLTV
-        run: npm run channels:parse --- --config=./sites/bein.com/bein.com.config.js --output=./sites/bein.com/bein.com_en.channels.xml --set=lang:en
+      # 5. تحويل البيانات إلى ملف XMLTV (الطريقة الجديدة)
+      - name: تحويل إلى XMLTV
+        run: npx epg-parser --config=./sites/bein.com/bein.com.config.js --output=./sites/bein.com/bein.com_en.channels.xml --set=lang:en
 
-      # 6. دفع التغييرات إلى المستودع
-      - name: دفع التغييرات إلى GitHub
+      # 6. دفع التغييرات إلى GitHub
+      - name: دفع التغييرات
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add sites/bein.com/bein.com_en.channels.xml
-          git commit -m "تحديث تلقائي لـ EPG بتاريخ $(date +'%Y-%m-%d')" || echo "لا توجد تغييرات جديدة"
+          git commit -m "تحديث تلقائي لـ EPG بتاريخ $(date +'%Y-%m-%d')" || echo "لا توجد تغييرات"
           git push
