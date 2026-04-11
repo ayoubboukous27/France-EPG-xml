@@ -55,20 +55,17 @@ jobs:
           mkdir -p public
           cp epg/sites/bein.com/bein.com_en.channels.xml public/bein.com_en.channels.xml
 
-      # Commit & Push الملف فقط مع دمج أي تغييرات موجودة مسبقًا
-      - name: 💾 Commit & Push XML in /public safely
+      # Commit & Push الملف فقط، بدون أي rebase أو merge
+      - name: 💾 Commit & Push XML only safely
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
+          # إضافة الملف الناتج فقط
           git add public/bein.com_en.channels.xml
-          git commit -m "Update beIN EPG XML in /public" || echo "No changes to commit"
 
-          # جلب آخر التغييرات من remote
-          git fetch origin master
+          # Commit إذا هناك تغييرات
+          git diff --cached --quiet || git commit -m "Update beIN EPG XML in /public"
 
-          # دمج التغييرات الجديدة مع commit الحالي
-          git rebase origin/master || git rebase --abort
-
-          # Push باستخدام GITHUB_TOKEN
+          # Push مباشرة باستخدام GITHUB_TOKEN
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master
