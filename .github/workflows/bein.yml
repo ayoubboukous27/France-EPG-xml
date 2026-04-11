@@ -37,21 +37,129 @@ jobs:
           cd epg
           npm run grab -- --site=bein.com --lang=en --days=7
 
-      - name: 📂 Copy guide.xml to /public
+      - name: 🔧 Fix channel names for Tivimate
         run: |
-          mkdir -p public
-          # الملف الرئيسي الذي يحتوي على البرامج هو guide.xml
-          cp epg/guide.xml public/bein_epg.xml
+          cd epg
+          
+          # إنشاء ملف mapping لأسماء القنوات
+          cat > channel_map.json << 'EOF'
+          {
+            "1": "beIN Movies 1",
+            "2": "beIN Movies 2",
+            "3": "beIN Movies 3",
+            "4": "beIN Movies 4",
+            "5": "beIN Sports 1",
+            "6": "beIN Sports 2",
+            "7": "beIN Sports 3",
+            "8": "beIN Sports 4",
+            "9": "beIN Sports 5",
+            "10": "beIN Sports 6",
+            "11": "beIN Sports 7",
+            "12": "beIN Sports Xtra 1",
+            "13": "beIN Sports Xtra 2",
+            "14": "beIN Sports Premium 1",
+            "15": "beIN 4K",
+            "16": "beIN Sports AFC",
+            "17": "beIN Sports AFC 1",
+            "18": "beIN Sports AFC 2",
+            "19": "beIN Sports AFC 3",
+            "20": "beIN Sports English 1",
+            "21": "beIN Sports English 2",
+            "22": "beIN Sports English 3",
+            "23": "beIN Sports NBA",
+            "24": "beIN Sports French 1",
+            "25": "beIN Sports French 2",
+            "26": "beIN Sports French 3",
+            "27": "beIN Sports Max 1",
+            "28": "beIN Sports Max 2",
+            "29": "beIN Sports Max 3",
+            "30": "beIN Sports Max 4",
+            "31": "beIN Sports Max 5",
+            "32": "beIN Sports Max 6",
+            "33": "beIN Sports Premium 2",
+            "34": "beIN Sports Premium 3",
+            "35": "beIN Sports News",
+            "36": "beIN Sports 8",
+            "37": "beIN Sports 9"
+          }
+          EOF
 
-      - name: 💾 Commit & Push XML safely
+      - name: 📝 Generate fixed XML for Tivimate
+        run: |
+          cd epg
+          
+          # إنشاء ملف XML مخصص مع أسماء القنوات الصحيحة
+          python3 << 'PYTHON_SCRIPT'
+          import xml.etree.ElementTree as ET
+          import json
+          
+          # قراءة ملف guide.xml الأصلي
+          tree = ET.parse('guide.xml')
+          root = tree.getroot()
+          
+          # تحميل mapping الأسماء
+          with open('channel_map.json', 'r') as f:
+              channel_map = json.load(f)
+          
+          # إنشاء ملف جديد
+          new_root = ET.Element('tv')
+          new_root.set('generator-info-name', 'beIN EPG Fixed for Tivimate')
+          
+          # نسخ وتعديل القنوات
+          for channel in root.findall('channel'):
+              site_id = channel.get('id', '')
+              # استخراج الرقم من site_id (مثل "bein.com#sports#5" -> "5")
+              if '#' in site_id:
+                  num = site_id.split('#')[-1]
+                  if num in channel_map:
+                      # تغيير id إلى الاسم الصحيح
+                      channel.set('id', channel_map[num])
+                      # إضافة display-name
+                      display_name = ET.SubElement(channel, 'display-name')
+                      display_name.text = channel_map[num]
+                      
+                      # إضافة display-name بالعربية
+                      arabic_names = {
+                          "beIN Movies 1": "بي إن موفيز 1",
+                          "beIN Sports 1": "بي إن سبورت 1",
+                          "beIN Sports 2": "بي إن سبورت 2",
+                          "beIN Sports 3": "بي إن سبورت 3",
+                          "beIN Sports 4": "بي إن سبورت 4",
+                          "beIN Sports 5": "بي إن سبورت 5",
+                          "beIN Sports News": "بي إن سبورت نيوز"
+                      }
+                      if channel_map[num] in arabic_names:
+                          display_name_ar = ET.SubElement(channel, 'display-name')
+                          display_name_ar.text = arabic_names[channel_map[num]]
+                          display_name_ar.set('lang', 'ar')
+                      
+                      new_root.append(channel)
+          
+          # نسخ البرامج مع تحديث معرفات القنوات
+          for programme in root.findall('programme'):
+              old_channel = programme.get('channel', '')
+              if '#' in old_channel:
+                  num = old_channel.split('#')[-1]
+                  if num in channel_map:
+                      programme.set('channel', channel_map[num])
+                      new_root.append(programme)
+          
+          # حفظ الملف الجديد
+          new_tree = ET.ElementTree(new_root)
+          ET.indent(new_tree, space='  ')
+          new_tree.write('../public/bein_epg_fixed.xml', encoding='UTF-8', xml_declaration=True)
+          PYTHON_SCRIPT
+
+      - name: 💾 Commit & Push fixed XML
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-          git add public/bein_epg.xml
+          mkdir -p public
+          git add public/bein_epg_fixed.xml
 
           if ! git diff --cached --quiet; then
-            git commit -m "Update beIN EPG guide (7 days)"
+            git commit -m "Update beIN EPG with fixed channel names for Tivimate"
           fi
 
           git pull --rebase origin main
