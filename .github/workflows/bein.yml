@@ -49,17 +49,17 @@ jobs:
             --output=./sites/bein.com/bein.com_en.channels.xml \
             --set=lang:en
 
-      # Copy XML الناتج إلى مجلد output في repo الخاص بك
-      - name: 📂 Copy XML to repo
+      # Copy XML الناتج إلى مجلد public في repo الخاص بك
+      - name: 📂 Copy XML to /public
         run: |
-          mkdir -p output
-          cp epg/sites/bein.com/bein.com_en.channels.xml output/bein.com_en.channels.xml
+          mkdir -p public
+          cp epg/sites/bein.com/bein.com_en.channels.xml public/bein.com_en.channels.xml
 
       # Commit & Push الملف فقط
-      - name: 💾 Commit & Push XML only
+      - name: 💾 Commit & Push XML in /public
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add output/bein.com_en.channels.xml
-          git commit -m "Update beIN EPG" || echo "No changes to commit"
+          git add public/bein.com_en.channels.xml
+          git commit -m "Update beIN EPG XML in /public" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master
