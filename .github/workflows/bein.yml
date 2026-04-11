@@ -1,76 +1,41 @@
-name: Grab beIN Sports EN EPG (Full Program via Clone)
+name: تحديث EPG لقناة beIN
 
 on:
   schedule:
-    - cron: "0 5 * * *"  # تحديث يوميًا الساعة 05:00 UTC
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    - cron: '0 2 * * *'  # يتم التشغيل يوميًا عند الساعة 2:00 صباحًا
+  workflow_dispatch:     # يسمح بالتشغيل اليدوي من واجهة GitHub
 
 jobs:
-  grab_bein_en:
+  update-epg:
     runs-on: ubuntu-latest
-
     steps:
-      # --------------------------
-      # Checkout repository
-      # --------------------------
-      - name: Checkout repository
+      # 1. تحميل الكود من المستودع
+      - name: تحميل الكود من المستودع
         uses: actions/checkout@v4
 
-      # --------------------------
-      # Setup Node.js (latest stable)
-      # --------------------------
-      - name: Setup Node.js
+      # 2. إعداد بيئة Node.js
+      - name: إعداد Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
 
-      # --------------------------
-      # Clone iptv-org/epg repository
-      # --------------------------
-      - name: Clone iptv-org/epg
-        run: |
-          if [ ! -d "epg" ]; then
-            git clone --depth 1 https://github.com/iptv-org/epg.git
-          else
-            git -C epg pull
+      # 3. تثبيت الاعتماديات (dependencies)
+      - name: تثبيت الاعتماديات
+        run: npm install
 
-      # --------------------------
-      # Install dependencies
-      # --------------------------
-      - name: Install dependencies
-        run: |
-          cd epg
-          npm install
+      # 4. تشغيل grabber لجلب البيانات
+      - name: تشغيل grabber لجلب البيانات
+        run: npm run grab --- --site=bein.com --lang=en
 
-      # --------------------------
-      # Grab beIN Sports English EPG (Full Program)
-      # --------------------------
-      - name: Grab beIN Sports EN EPG
-        run: |
-          cd epg
-          # هذا الأمر يستخدم سكريبت grab الأصلي داخل repo لإخراج كل البرامج
-          npm run grab --- --site=bein.com --lang=en
+      # 5. تحويل البيانات إلى ملف XMLTV
+      - name: تحويل البيانات إلى ملف XMLTV
+        run: npm run channels:parse --- --config=./sites/bein.com/bein.com.config.js --output=./sites/bein.com/bein.com_en.channels.xml --set=lang:en
 
-      # --------------------------
-      # Save XML output
-      # --------------------------
-      - name: Save XML
+      # 6. دفع التغييرات إلى المستودع
+      - name: دفع التغييرات إلى GitHub
         run: |
-          mkdir -p public
-          cp epg/guide.xml public/epg-bein-en.xml
-          echo "✅ Full EPG saved to public/epg-bein-en.xml"
-
-      # --------------------------
-      # Commit & Push
-      # --------------------------
-      - name: Commit & Push
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add public/epg-bein-en.xml
-          git diff-index --quiet HEAD || git commit -m "Update beIN Sports EN Full EPG"
-          git pull --rebase origin main
-          git push origin main
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add sites/bein.com/bein.com_en.channels.xml
+          git commit -m "تحديث تلقائي لـ EPG بتاريخ $(date +'%Y-%m-%d')" || echo "لا توجد تغييرات جديدة"
+          git push
