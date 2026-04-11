@@ -3,7 +3,7 @@ name: Update beIN EPG
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *" # كل 6 ساعات
+    - cron: "0 */6 * * *"
 
 permissions:
   contents: write
@@ -13,34 +13,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo الخاص بك
       - name: 📥 Checkout this repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # مهم لجلب كل التاريخ لتجنب مشاكل rebase
 
-      # Setup Node.js LTS
       - name: 🟢 Setup Node.js LTS
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
 
-      # Clone كامل مستودع iptv-org/epg
       - name: 📂 Clone iptv-org/epg
         run: |
           git clone --depth 1 https://github.com/iptv-org/epg.git epg
 
-      # تثبيت dependencies مع postinstall
       - name: 📦 Install dependencies
         run: |
           cd epg
           npm install
 
-      # Run grab لموقع bein.com
       - name: ▶️ Run grab for bein.com
         run: |
           cd epg
           npm run grab -- --site=bein.com --lang=en
 
-      # Parse channels إلى XML
       - name: ▶️ Parse channels for bein.com
         run: |
           cd epg
@@ -49,23 +45,26 @@ jobs:
             --output=./sites/bein.com/bein.com_en.channels.xml \
             --set=lang:en
 
-      # Copy XML الناتج إلى مجلد public في repo الخاص بك
       - name: 📂 Copy XML to /public
         run: |
           mkdir -p public
           cp epg/sites/bein.com/bein.com_en.channels.xml public/bein.com_en.channels.xml
 
-      # Commit & Push الملف فقط، بدون أي rebase أو merge
-      - name: 💾 Commit & Push XML only safely
+      - name: 💾 Commit & Push XML safely
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-          # إضافة الملف الناتج فقط
+          # إضافة الملف
           git add public/bein.com_en.channels.xml
 
-          # Commit إذا هناك تغييرات
-          git diff --cached --quiet || git commit -m "Update beIN EPG XML in /public"
+          # عمل commit فقط إذا هناك تغييرات
+          if ! git diff --cached --quiet; then
+            git commit -m "Update beIN EPG XML in /public"
+          fi
 
-          # Push مباشرة باستخدام GITHUB_TOKEN
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master
+          # جلب أحدث التغييرات من remote وإعادة تطبيق commits المحلية فوقها
+          git pull --rebase origin master
+
+          # الآن push آمن
+          git push origin master
