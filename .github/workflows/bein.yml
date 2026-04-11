@@ -1,4 +1,4 @@
-name: Grab beIN Sports AR EPG
+name: Grab beIN Mena Package AR EPG
 
 on:
   schedule:
@@ -13,19 +13,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------
+      # Checkout the repository
+      # --------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --------------------------
+      # Setup Node.js (latest stable)
+      # --------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "node"  # استخدم أحدث نسخة مستقرة من Node.js
+          node-version: "node"
+
+      # --------------------------
+      # Clone iptv-org/epg repository
+      # --------------------------
+      - name: Clone iptv-org/epg
+        run: |
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
 
       # --------------------------
       # Install dependencies
       # --------------------------
       - name: Install dependencies
         run: |
+          cd epg
           npm install
 
       # --------------------------
@@ -33,17 +51,18 @@ jobs:
       # --------------------------
       - name: Grab beIN Sports AR EPG
         run: |
+          cd epg
           npm run grab --- --site=bein.com --lang=ar
           npm run channels:parse --- --config=./sites/bein.com/bein.com.config.js --output=./sites/bein.com/bein.com_ar.channels.xml --set=lang:ar
 
       # --------------------------
-      # Save XML
+      # Save XML output
       # --------------------------
       - name: Save XML
         run: |
           mkdir -p public
-          cp ./sites/bein.com/bein.com_ar.channels.xml public/epg-bein-ar.xml
-          echo "✅ EPG saved to epg-bein-ar.xml"
+          cp epg/sites/bein.com/bein.com_ar.channels.xml public/epg-bein-ar.xml
+          echo "✅ EPG saved to public/epg-bein-ar.xml"
 
       # --------------------------
       # Commit & Push
