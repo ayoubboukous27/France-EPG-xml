@@ -2,7 +2,7 @@ name: EPG Programme TV Update
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 3 * * *"  # يوميًا الساعة 03:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -23,14 +23,21 @@ jobs:
 
       - name: Clone EPG repo
         run: |
-          git clone --depth 1 https://github.com/iptv-org/epg.git
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
           cd epg
           npm install
 
       - name: Generate EPG (programme-tv.net)
         run: |
           cd epg
-          npm run grab --- --site=programme-tv.net --days=7
+          npx tsx scripts/commands/epg/grab.ts \
+            --channels=sites/programme-tv.net/programme-tv.net.channels.xml \
+            --output=guide.xml \
+            --days=7
 
       - name: Save XML
         run: |
