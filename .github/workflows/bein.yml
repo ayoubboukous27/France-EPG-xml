@@ -1,36 +1,30 @@
-name: Generate beIN MENA AR EPG (7 days)
+name: Generate beIN AR EPG
 
 on:
   schedule:
-    - cron: "0 5 * * *"  # تحديث يوميًا الساعة 05:00 UTC
+    - cron: "0 5 * * *"  # كل يوم الساعة 05:00 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  grab_bein_mena_ar:
+  generate_bein_ar:
     runs-on: ubuntu-latest
 
     steps:
-      # --------------------------
-      # Checkout repository
-      # --------------------------
+      # checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --------------------------
-      # Setup Node.js latest stable
-      # --------------------------
+      # setup node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "node"
 
-      # --------------------------
-      # Clone iptv-org/epg
-      # --------------------------
-      - name: Clone iptv-org/epg
+      # clone iptv-org/epg
+      - name: Clone EPG repo
         run: |
           if [ ! -d "epg" ]; then
             git clone --depth 1 https://github.com/iptv-org/epg.git
@@ -38,29 +32,15 @@ jobs:
             git -C epg pull
           fi
 
-      # --------------------------
-      # Install dependencies
-      # --------------------------
+      # install dependencies
       - name: Install dependencies
         run: |
           cd epg
           npm install
+          npm install xml2js
 
-      # --------------------------
-      # Parse channel list (AR)
-      # --------------------------
-      - name: Generate channels XML (AR)
-        run: |
-          cd epg
-          npx tsx scripts/commands/epg/channels.ts \
-            --config=sites/bein.com/bein.com.config.js \
-            --output=sites/bein.com/bein.com_ar.channels.xml \
-            --set=lang:ar
-
-      # --------------------------
-      # Grab EPG for AR channels
-      # --------------------------
-      - name: Grab beIN EPG (AR)
+      # grab EPG for AR
+      - name: Grab beIN AR EPG
         run: |
           cd epg
           npx tsx scripts/commands/epg/grab.ts \
@@ -68,22 +48,60 @@ jobs:
             --output=guide_bein_ar.xml \
             --days=7
 
-      # --------------------------
-      # Save XML
-      # --------------------------
-      - name: Save EPG
+      # apply channel names from channels.xml
+      - name: Apply channel names
         run: |
-          mkdir -p public
-          cp epg/guide_bein_ar.xml public/epg-bein-mena-ar.xml
+          cd epg
+          node << 'EOF'
+          const fs = require('fs');
+          const xml2js = require('xml2js');
 
-      # --------------------------
-      # Commit & Push
-      # --------------------------
+          const channelsXml = fs.readFileSync('sites/bein.com/bein.com_ar.channels.xml', 'utf-8');
+          xml2js.parseString(channelsXml, (err, chRes) => {
+            if (err) throw err;
+
+            const channelMap = {};
+            if (chRes.channels && chRes.channels.channel) {
+              chRes.channels.channel.forEach(c => {
+                // use xmltv_id if exists, else site_id
+                const id = c.$.xmltv_id || c.$.site_id || c.$.id;
+                const name = c._.trim();
+                channelMap[id] = name;
+              });
+            }
+
+            const epgXml = fs.readFileSync('guide_bein_ar.xml', 'utf-8');
+            xml2js.parseString(epgXml, (err2, epgRes) => {
+              if (err2) throw err2;
+
+              if (epgRes.tv && epgRes.tv.channel) {
+                epgRes.tv.channel.forEach(ch => {
+                  const id = ch.$.id;
+                  if (channelMap[id]) {
+                    if (ch['display-name']) {
+                      ch['display-name'][0] = channelMap[id];
+                    } else {
+                      ch['display-name'] = [channelMap[id]];
+                    }
+                  }
+                });
+              }
+
+              const builder = new xml2js.Builder({
+                xmldec: { version: '1.0', encoding: 'UTF-8' }
+              });
+              const xmlOut = builder.buildObject(epgRes);
+              fs.writeFileSync('../public/epg-bein-mena-ar.xml', xmlOut, 'utf-8');
+            });
+          });
+          EOF
+
+      # save & push
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-bein-mena-ar.xml
-          git diff-index --quiet HEAD || git commit -m "Update beIN MENA AR EPG"
+          git diff-index --quiet HEAD || git commit -m "Update beIN AR EPG"
           git pull --rebase origin main
           git push origin main
