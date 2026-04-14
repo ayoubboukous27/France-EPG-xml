@@ -37,7 +37,7 @@ jobs:
           npx tsx scripts/commands/epg/grab.ts \
             --channels=sites/tv.blue.ch/tv.blue.ch.channels.xml \
             --output=guide.xml \
-            --days=10
+            --days=5
 
       # --------------------------
       # Add logos: Blue Sports + RTS
