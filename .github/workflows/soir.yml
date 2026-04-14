@@ -1,4 +1,4 @@
-name: EPG TV CEssoir Update
+name: Ce Soir France
 
 on:
   schedule:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -21,27 +21,41 @@ jobs:
         with:
           node-version: 20
 
-      - name: Clone EPG repo
+      - name: Clone iptv-org/epg
         run: |
-          git clone --depth 1 https://github.com/iptv-org/epg.git
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
+
+      - name: Install dependencies
+        run: |
           cd epg
           npm install
+          npm install xml2js
 
-      - name: Generate EPG (tvcesoir.fr)
+      # --------------------------
+      # Grab TV CEssoir EPG using channels file
+      # --------------------------
+      - name: Grab TV CEssoir EPG (7 days)
         run: |
           cd epg
-          npm run grab --- --site=tvcesoir.fr
+          npx tsx scripts/commands/epg/grab.ts \
+            --channels=sites/tvcesoir.fr/tvcesoir.fr.channels.xml \
+            --output=guide_tvcesoir.xml \
+            --days=7
 
-      - name: Save XML
+      - name: Save EPG XML
         run: |
           mkdir -p public
-          cp epg/guide.xml public/epg-tvcesoir.xml
+          cp epg/guide_tvcesoir.xml public/epg-tvcesoir.xml
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-tvcesoir.xml
-          git diff-index --quiet HEAD || git commit -m "Update EPG tvcesoir.fr"
+          git diff-index --quiet HEAD || git commit -m "Update 7-day EPG tvcesoir.fr"
           git pull --rebase origin main
           git push origin main
