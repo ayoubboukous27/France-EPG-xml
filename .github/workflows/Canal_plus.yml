@@ -1,0 +1,89 @@
+name: CanalPlus France
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # تحديث يوميًا الساعة 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  grab_canalplus_fr:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------
+      # Checkout repo
+      # --------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------
+      # Setup Node.js
+      # --------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # --------------------------
+      # Clone iptv-org/epg repo
+      # --------------------------
+      - name: Clone iptv-org/epg
+        run: |
+          if [ ! -d "epg" ]; then
+            git clone --depth 1 https://github.com/iptv-org/epg.git
+          else
+            git -C epg pull
+          fi
+
+      # --------------------------
+      # Install dependencies
+      # --------------------------
+      - name: Install dependencies
+        run: |
+          cd epg
+          npm install
+
+      # --------------------------
+      # Grab CanalPlus FR EPG
+      # --------------------------
+      - name: Grab CanalPlus French EPG
+        run: |
+          cd epg
+          npx tsx scripts/commands/epg/grab.ts \
+            --channels=sites/canalplus.com/canalplus.com_fr.channels.xml \
+            --output=guide.xml
+
+      # --------------------------
+      # Parse channels (to apply correct names)
+      # --------------------------
+      - name: Parse CanalPlus channels
+        run: |
+          cd epg
+          npx tsx scripts/commands/epg/channels.ts \
+            --config=sites/canalplus.com/canalplus.com.config.js \
+            --output=sites/canalplus.com/canalplus.com_fr.channels.xml \
+            --set=country:fr
+
+      # --------------------------
+      # Save XML
+      # --------------------------
+      - name: Save XML
+        run: |
+          mkdir -p public
+          cp epg/guide.xml public/epg-canalplus-fr.xml
+          echo "✅ EPG saved as epg-canalplus-fr.xml"
+
+      # --------------------------
+      # Commit & Push
+      # --------------------------
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/epg-canalplus-fr.xml
+          git diff-index --quiet HEAD || git commit -m "Update CanalPlus FR EPG"
+          git pull --rebase origin main
+          git push origin main
