@@ -1,8 +1,8 @@
-name: CanalPlus France 
+name: CanalPlus France
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # يوميًا الساعة 06:00 UTC
+    - cron: "0 6 * * *"  # تحديث يوميًا الساعة 06:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -13,87 +13,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------
+      # Checkout repository
+      # --------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # --------------------------
+      # Setup Node.js
+      # --------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+      # --------------------------
+      # Clone iptv-org/epg
+      # --------------------------
       - name: Clone iptv-org/epg
         run: |
           if [ ! -d "epg" ]; then
             git clone --depth 1 https://github.com/iptv-org/epg.git
           else
             git -C epg pull
+          fi
 
+      # --------------------------
+      # Install dependencies
+      # --------------------------
       - name: Install dependencies
         run: |
           cd epg
           npm install
 
       # --------------------------
-      # Grab 7-day EPG using the official channels XML
+      # Grab EPG for CanalPlus FR
       # --------------------------
-      - name: Grab CanalPlus FR EPG (7 days)
+      - name: Grab CanalPlus FR EPG
         run: |
           cd epg
           npx tsx scripts/commands/epg/grab.ts \
             --channels=sites/canalplus.com/canalplus.com_fr.channels.xml \
-            --output=guide.xml \
+            --output=guide_canalplus_fr.xml \
             --days=7
 
       # --------------------------
-      # Fix channel names to match channel IDs
+      # Save XML output
       # --------------------------
-      - name: Map channel names
+      - name: Save XML
         run: |
-          cd epg
-          node <<'EOF'
-          const fs = require('fs');
-          const xml2js = require('xml2js');
+          mkdir -p public
+          cp epg/guide_canalplus_fr.xml public/epg-canalplus-fr.xml
 
-          const channelFile = 'sites/canalplus.com/canalplus.com_fr.channels.xml';
-          const guideFile = 'guide.xml';
-
-          const parser = new xml2js.Parser();
-          const builder = new xml2js.Builder({ headless: false, xmldec: { version: '1.0', encoding: 'UTF-8' } });
-
-          // قراءة mapping القنوات
-          const channelData = fs.readFileSync(channelFile, 'utf-8');
-          parser.parseString(channelData, (err, channelResult) => {
-            if (err) throw err;
-            const channelMap = {};
-            channelResult.channels.channel.forEach(ch => {
-              const id = ch.$.xmltv_id || ch.$.site_id;
-              if (id) channelMap[id] = id;  // استخدام xmltv_id أو site_id كاسم للقناة
-            });
-
-            // قراءة guide.xml
-            const guideData = fs.readFileSync(guideFile, 'utf-8');
-            parser.parseString(guideData, (err2, guideResult) => {
-              if (err2) throw err2;
-
-              // تعديل display-name لكل قناة
-              guideResult.tv.channel.forEach(ch => {
-                const chId = ch.$.id;
-                if (channelMap[chId]) {
-                  ch['display-name'] = [{ _: channelMap[chId] }];
-                }
-              });
-
-              // حفظ الملف المعدل
-              fs.writeFileSync('../public/epg-canalplus-fr.xml', builder.buildObject(guideResult));
-            });
-          });
-          EOF
-
+      # --------------------------
+      # Commit & Push
+      # --------------------------
       - name: Commit & Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add public/epg-canalplus-fr.xml
-          git diff-index --quiet HEAD || git commit -m "Update CanalPlus FR EPG 7 days with correct channel names"
+          git diff-index --quiet HEAD || git commit -m "Update CanalPlus FR EPG"
           git pull --rebase origin main
           git push origin main
